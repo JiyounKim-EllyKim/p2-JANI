@@ -174,6 +174,11 @@ def compare_models(X_tr, X_tr_prep, X_val, X_val_prep, y_tr, y_val):
     models.append(train_lgbm(X_tr_prep, y_tr, X_val_prep, y_val))
     models.append(train_rf(X_tr_prep, y_tr))
 
+    model_names = [model.__class__.__name__ for model in models]
+    print("Completed models:")
+    for name in model_names:
+        print(f"- {name}")
+
     return models
 
 
