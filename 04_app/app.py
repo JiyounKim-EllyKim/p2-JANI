@@ -15,6 +15,7 @@ import matplotlib.pyplot as plt
 import shap
 from xgboost import XGBClassifier
 from sklearn.cluster import KMeans
+from sklearn.neighbors import NearestCentroid
 from sklearn.preprocessing import MinMaxScaler
 
 # ---------------------------------------------------------
@@ -26,7 +27,7 @@ project_root = os.path.abspath(os.path.join(current_dir, '..'))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-from src.clustering import make_rfm_table
+from src.preprocessing import rfm_df_preprocessing
 
 # ---------------------------------------------------------
 # 1. 페이지 설정 및 맑은 핑크 CSS
@@ -89,7 +90,7 @@ def go_to_cluster_page(cluster_idx):
     st.session_state.step = STEP_CLUSTER
 
 
-def go(step: str):
+def navigate(step: str):
     st.session_state.step = step
     st.rerun()
 
@@ -101,10 +102,10 @@ rfm_features = ['activity_score', 'adjusted_frequency', 'Monetary', 'Engagement'
                 'support_pressure']
 
 CLUSTER_COLORS = {
-    "Cluster 0": "#4ADE80",  # 맑은 파스텔 그린
-    "Cluster 1": "#FBBF24",  # 맑은 파스텔 옐로우오렌지
-    "Cluster 2": "#FF6B6B",  # 🚨 맑은 파스텔 레드
-    "Cluster 3": "#60A5FA"  # 맑은 파스텔 블루
+    "Cluster 0": "#60A5FA",  # 맑은 파스텔 블루
+    "Cluster 1": "#FF6B6B",  # 🚨 맑은 파스텔 레드 (최고 위험)
+    "Cluster 2": "#4ADE80",  # 맑은 파스텔 그린 (가장 안전)
+    "Cluster 3": "#FBBF24"  # 맑은 파스텔 옐로우오렌지
 }
 
 
@@ -116,7 +117,7 @@ def load_data():
         st.error(f"🚨 파일을 찾을 수 없습니다: `{file_path}`")
         st.stop()
 
-    rfm_df, rfm_scaled_df = make_rfm_table(file_path)
+    rfm_df, rfm_scaled_df = rfm_df_preprocessing(file_path)
 
     model_df = pd.read_csv(file_path)
     if 'churned' in model_df.columns:
@@ -124,8 +125,15 @@ def load_data():
     else:
         rfm_df['churned'] = 0
 
-    kmeans = KMeans(n_clusters=4, random_state=42, n_init=10)
-    rfm_df['Cluster'] = [f"Cluster {c}" for c in kmeans.fit_predict(rfm_scaled_df)]
+    if 'cluster' in model_df.columns:
+        rfm_df['Cluster'] = model_df['cluster'].apply(lambda x: f"Cluster {int(x)}")
+    elif 'Cluster' in model_df.columns:
+        rfm_df['Cluster'] = model_df['Cluster'].apply(
+            lambda x: f"Cluster {int(x)}" if isinstance(x, (int, float)) else str(x))
+    else:
+        # 🌟 노트북 코드와 완벽히 동일하게 K-Means 파라미터 맞춤
+        kmeans = KMeans(n_clusters=4, random_state=42)
+        rfm_df['Cluster'] = [f"Cluster {c}" for c in kmeans.fit_predict(rfm_scaled_df)]
 
     return rfm_df
 
@@ -135,7 +143,6 @@ def load_model(_df):
     X = _df[rfm_features]
     y = _df['churned']
 
-    # 🌟 XGBoost 모델로 교체 (주피터 노트북의 최적 파라미터 적용) 🌟
     model = XGBClassifier(
         n_estimators=300,
         learning_rate=0.05,
@@ -149,8 +156,22 @@ def load_model(_df):
     model.fit(X, y)
     return model
 
+
+@st.cache_resource
+def load_cluster_model(_df):
+    scaler = MinMaxScaler()
+    X_scaled = scaler.fit_transform(_df[rfm_features])
+    y = _df['Cluster']
+
+    clf = NearestCentroid()
+    clf.fit(X_scaled, y)
+
+    return clf, scaler
+
+
 df_all = load_data()
-model_xgb = load_model(df_all) # 변수명 변경
+model_xgb = load_model(df_all)
+cluster_clf, cluster_scaler = load_cluster_model(df_all)
 
 
 # ---------------------------------------------------------
@@ -165,12 +186,12 @@ def render_main():
         st.markdown(
             '<div class="landing-card"><div class="title">🤖 이탈 시뮬레이터 (XAI)</div><div class="desc">특정 고객의 행동 지표를 입력하여 이탈 위험도를 예측하고 맞춤형 방어 전략을 도출합니다.</div></div>',
             unsafe_allow_html=True)
-        if st.button("시뮬레이터 및 리텐션 전략", type="primary", use_container_width=True): go(STEP_SIMULATOR)
+        if st.button("시뮬레이터 및 리텐션 전략", type="primary", use_container_width=True): navigate(STEP_SIMULATOR)
     with c2:
         st.markdown(
             '<div class="landing-card"><div class="title">👥 고객 군집별 대응 전략</div><div class="desc">K-Means로 세분화된 4가지 고객 군집의 이탈률, 행동 분포, 맞춤형 타겟 전략을 확인합니다.</div></div>',
             unsafe_allow_html=True)
-        if st.button("고객 군집별 대응 전략", type="primary", use_container_width=True): go(STEP_CLUSTER)
+        if st.button("고객 군집별 대응 전략", type="primary", use_container_width=True): navigate(STEP_CLUSTER)
 
 
 def render_simulator():
@@ -178,7 +199,7 @@ def render_simulator():
 
     with st.sidebar:
         st.header("🎧 행동 지표 입력")
-        if st.button("⬅ 메인으로"): go(STEP_MAIN)
+        if st.button("⬅ 메인으로"): navigate(STEP_MAIN)
         st.divider()
         val_act = st.slider(
             "🏃 활동 점수", float(df_all['activity_score'].min()), float(df_all['activity_score'].max()),
@@ -201,15 +222,32 @@ def render_simulator():
             help="플레이리스트 생성, 친구 추가, 공유 활동을 합산한 플랫폼 참여도 지표입니다."
         )
         val_sub_risk = st.slider(
-            "⚠️ 구독 중단 위험도", float(df_all['subscription_risk'].min()), float(df_all['subscription_risk'].max()),
-            float(df_all['subscription_risk'].median()),
-            help="구독 일시정지 횟수를 기반으로 한 사용자 이탈 위험 신호 지표입니다."
+            "⚠️ 구독 중단 위험도",
+            min_value=0,
+            max_value=4,
+            value=int(df_all['subscription_risk'].median()),
+            step=1,
+            help="구독 일시정지 횟수를 기반으로 한 사용자 이탈 위험 신호 지표입니다. (0 ~ 4)"
         )
-        val_sup_press = st.slider(
-            "📞 고객센터 문의 빈도", float(df_all['support_pressure'].min()), float(df_all['support_pressure'].max()),
-            float(df_all['support_pressure'].median()),
-            help="고객센터 문의 횟수를 기반으로 한 서비스 불만 또는 문제 경험 지표입니다."
+        sp_options = ["Low", "Medium", "High"]
+        val_sup_press_label = st.select_slider(
+            "📞 고객센터 문의 빈도",
+            options=sp_options,
+            value="Medium",
+            help="고객센터 문의 빈도 지표입니다."
         )
+
+        sp_min = float(df_all['support_pressure'].min())
+        sp_med = float(df_all['support_pressure'].median())
+        sp_max = float(df_all['support_pressure'].max())
+
+        if val_sup_press_label == "Low":
+            val_sup_press = sp_min
+        elif val_sup_press_label == "Medium":
+            val_sup_press = sp_med
+        else:
+            val_sup_press = sp_max
+
         st.divider()
         run_sim = st.button("▶️ 예측 실행", type="primary")
 
@@ -220,8 +258,18 @@ def render_simulator():
     input_df = pd.DataFrame(
         {'activity_score': [val_act], 'adjusted_frequency': [val_adj_freq], 'Monetary': [val_monetary],
          'Engagement': [val_eng], 'subscription_risk': [val_sub_risk], 'support_pressure': [val_sup_press]})
+
     prob = model_xgb.predict_proba(input_df)[0][1] * 100
-    pred_label = "🔇 이탈 고위험군" if prob >= 50 else "▶️ 안정(유지) 고객"
+
+    input_scaled = cluster_scaler.transform(input_df)
+    target_cluster = cluster_clf.predict(input_scaled)[0]
+
+    if target_cluster in ["Cluster 1", "Cluster 3"]:
+        pred_label = "🔇 이탈 고위험군"
+    elif target_cluster == "Cluster 0":
+        pred_label = "⚠️ 이탈 주의군"
+    else:  # Cluster 2
+        pred_label = "▶️ 안정(유지) 고객"
 
     c1, c2, c3 = st.columns([1, 1, 1.5], gap="medium")
     with c1:
@@ -229,12 +277,12 @@ def render_simulator():
     with c2:
         card("이탈 확률", f"{prob:.1f}%")
     with c3:
-        if prob >= 50:
-            st.error("🚨 **이탈 위험이 매우 높습니다!** 즉각적인 리텐션 액션이 필요합니다.")
-        elif prob >= 30:
-            st.warning("⚠️ **이탈 징후가 보입니다.** 선제적 타겟 마케팅을 고려하세요.")
-        else:
+        if target_cluster == "Cluster 2":
             st.success("✅ **안정적으로 서비스를 이용 중**인 우수 고객입니다.")
+        elif target_cluster == "Cluster 0":
+            st.warning("⚠️ **이탈 징후가 보입니다.** 선제적 타겟 마케팅을 고려하세요.")
+        elif target_cluster in ["Cluster 1", "Cluster 3"]:
+            st.error("🚨 **이탈 위험이 매우 높습니다!** 즉각적인 리텐션 액션이 필요합니다.")
 
     st.divider()
 
@@ -284,22 +332,15 @@ def render_simulator():
 
     st.subheader("🎯 타겟 리텐션 전략")
 
-    if val_monetary >= df_all['Monetary'].quantile(0.75):
-        target_cluster = "Cluster 2"
-        cluster_desc = "핵심 헤비 콘텐츠 소비 사용자"
-    elif val_act <= df_all['activity_score'].quantile(0.25) and val_sub_risk >= df_all['subscription_risk'].quantile(
-            0.75):
-        target_cluster = "Cluster 1"
-        cluster_desc = "활동 감소 이탈 위험 사용자"
-    elif val_act >= df_all['activity_score'].quantile(0.75) and val_sub_risk >= df_all['subscription_risk'].quantile(
-            0.75):
-        target_cluster = "Cluster 3"
-        cluster_desc = "활동 높지만 잠재적 불만 사용자"
-    else:
-        target_cluster = "Cluster 0"
+    if target_cluster == "Cluster 0":
         cluster_desc = "안정적 콘텐츠 소비 사용자"
+    elif target_cluster == "Cluster 1":
+        cluster_desc = "활동 감소 이탈 위험 사용자"
+    elif target_cluster == "Cluster 2":
+        cluster_desc = "핵심 헤비 콘텐츠 소비 사용자"
+    else:
+        cluster_desc = "활동 높지만 잠재적 불만 사용자"
 
-    # 예측된 군집의 고유 색상으로 텍스트 색깔 표시
     target_color = CLUSTER_COLORS[target_cluster]
 
     st.markdown(
@@ -309,7 +350,7 @@ def render_simulator():
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    cluster_idx_num = int(target_cluster[-1])
+    cluster_idx_num = int(target_cluster.split(" ")[-1])
     st.button("대응 전략 확인해보러 가기 ➡️", type="primary", on_click=go_to_cluster_page, args=(cluster_idx_num,))
 
 
@@ -320,7 +361,7 @@ def render_cluster_profile():
 
     with st.sidebar:
         st.header("🔍 군집 탐색 설정")
-        if st.button("⬅ 메인으로"): go(STEP_MAIN)
+        if st.button("⬅ 메인으로"): navigate(STEP_MAIN)
         st.divider()
         st.markdown("👇 **아래에서 분석할 군집을 선택하세요.**")
 
@@ -334,16 +375,39 @@ def render_cluster_profile():
 
     with c1:
         st.subheader("📊 군집별 이탈률 비교")
+
+        # 🌟 고정값 삭제, 데이터에서 실시간으로 이탈률 (평균) 계산!
         churn_rates = df_all.groupby('Cluster')['churned'].mean().reset_index()
         churn_rates['churned'] = churn_rates['churned'] * 100
+        churn_rates = churn_rates.sort_values(by="Cluster")  # Cluster 0, 1, 2, 3 순서 보장
 
-        bar_colors = [current_color if c == target_cluster else '#E5E7EB' for c in churn_rates['Cluster']]
+        opacities = [1.0 if c == target_cluster else 0.4 for c in churn_rates['Cluster']]
+        bar_colors = [CLUSTER_COLORS[c] for c in churn_rates['Cluster']]
 
-        fig_bar = px.bar(churn_rates, x='Cluster', y='churned', text_auto='.1f', color='Cluster',
-                         color_discrete_sequence=bar_colors)
-        fig_bar.update_layout(showlegend=False, plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)',
-                              yaxis_title="이탈률 (%)", margin=dict(t=30, b=20))
-        fig_bar.update_traces(textfont_size=14, textangle=0, textposition="outside", cliponaxis=False)
+        fig_bar = go.Figure(data=[
+            go.Bar(
+                x=churn_rates['Cluster'],
+                y=churn_rates['churned'],
+                text=churn_rates['churned'].apply(lambda x: f"{x:.1f}%"),
+                textposition='outside',
+                marker_color=bar_colors,
+                marker=dict(opacity=opacities),
+                textfont=dict(size=14, color='#111827')
+            )
+        ])
+
+        # 🌟 y축 최대값을 동적 계산 최대치보다 넉넉하게 자동 할당
+        max_churn = churn_rates['churned'].max()
+
+        fig_bar.update_layout(
+            showlegend=False,
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)',
+            yaxis_title="이탈률 (%)",
+            margin=dict(t=30, b=20)
+        )
+        fig_bar.update_yaxes(range=[0, max_churn + 15])
+
         st.plotly_chart(fig_bar, use_container_width=True)
 
     with c2:
@@ -387,15 +451,15 @@ def render_cluster_profile():
         levels = [2, 3, 2, 3, 1, 2]
         texts = ['중간', '높음', '중간', '높음', '낮음', '보통']
         strategy_msg = "• 개인화 음악 추천 알고리즘 강화<br>• 신규 콘텐츠 및 아티스트 적극 추천<br>• 플레이리스트 추천 큐레이션 기능 개선<br>• 친구 간 소셜 및 콘텐츠 공유 기능 활성화"
-        bg_color = "#F0FDF4"  # 연한 그린 배경
+        bg_color = "#F0F6FF"  # 블루 배경
 
     elif target_cluster == "Cluster 1":
         title = "활동 감소 이탈 위험 사용자"
-        desc = "이 군집은 서비스 활동 수준이 낮고 구독 일시 중단 경험이 많은 사용자 그룹입니다. 최근 서비스 이용 빈도가 감소하고 있으며 장기적으로 서비스 이탈 가능성이 높은 사용자군으로 해석됩니다. 서비스 이용 경험이 감소하면서 플랫폼에서 점차 멀어지는 패턴을 보입니다."
+        desc = "이 군집은 서비스 활동 수준이 낮고 구독 일시 중단 경험이 많은 사용자 그룹입니다. 최근 서비스 이용 빈도가 감소하고 장기적으로 서비스 이탈 가능성이 높은 사용자군으로 해석됩니다. 서비스 이용 경험이 감소하면서 플랫폼에서 점차 멀어지는 패턴을 보입니다."
         levels = [1, 2, 2, 3, 3, 2]
         texts = ['낮음', '중간', '중간', '높음', '높음', '보통']
         strategy_msg = "• 앱 접속을 유도하는 재참여 알림(Push) 발송<br>• 취향 맞춤형 개인화 콘텐츠 추천 리텐션 메일<br>• 구독 유지를 위한 특별 프로모션(할인 쿠폰) 제공<br>• 복귀 사용자 대상 타겟 마케팅 캠페인 집중 전개"
-        bg_color = "#FFFBEB"  # 연한 옐로우 배경
+        bg_color = "#FFF0F0"  # 레드 배경
 
     elif target_cluster == "Cluster 2":
         title = "핵심 헤비 콘텐츠 소비 사용자"
@@ -403,7 +467,7 @@ def render_cluster_profile():
         levels = [3, 3, 4, 2, 1, 1]
         texts = ['높음', '높음', '가장 높음', '중간', '낮음', '낮음']
         strategy_msg = "• 고음질, 무손실 등 프리미엄 서비스 우선 제공<br>• 개인화 플레이리스트 추천 기능 지속 강화<br>• 최상위 VIP 전용 혜택 및 리워드 프로그램 운영<br>• 신규 기능 도입 시 베타 테스트 참여 기회 부여"
-        bg_color = "#FFF0F0"  # 🚨 연한 레드 배경
+        bg_color = "#F0FDF4"  # 그린 배경
 
     elif target_cluster == "Cluster 3":
         title = "활동 높지만 잠재적 불만 사용자"
@@ -411,7 +475,7 @@ def render_cluster_profile():
         levels = [4, 2, 2, 3, 3, 2]
         texts = ['가장 높음', '중간', '중간', '높음', '높음', '보통']
         strategy_msg = "• 앱 내 사용성 및 전반적인 사용자 경험(UX) 개선<br>• 고객센터 불만사항 선제적 대응 및 품질 향상<br>• 이탈 원인이 될 수 있는 추천 알고리즘 로직 개선<br>• 심층 피드백 수집 및 서비스 업데이트 내역 투명한 안내"
-        bg_color = "#F0F6FF"  # 연한 블루 배경
+        bg_color = "#FFFBEB"  # 옐로우 배경
 
     st.markdown(f"#### 🔎 {title}")
 
@@ -458,4 +522,4 @@ elif st.session_state.step == STEP_SIMULATOR:
 elif st.session_state.step == STEP_CLUSTER:
     render_cluster_profile()
 else:
-    go(STEP_MAIN)
+    navigate(STEP_MAIN)
