@@ -36,7 +36,7 @@
       <table align="center" width="105">
         <tr>
           <td align="center" height="120">
-            <img src="https://i.pinimg.com/originals/43/b4/4e/43b44ee6e3fb4bc796710416b9c6f568.jpg"
+            <img src=figures/바넬로피.jpg
                  width="70" height="95"
                  style="object-fit:contain;">
           </td>
@@ -55,7 +55,7 @@
       <table align="center" width="105">
         <tr>
           <td align="center" height="120">
-            <img src="https://i.namu.wiki/i/1tX0qTaEG_tGOksS0Pcjqx-xSyVJrizKgQG0qKQ-kOChOdx7xI2wh_64j8PdXXoL86pm3iY5DOjBfLJLhirzbKgXcmnBbiGa4G2nacWl7AtgI7cUWYo-YU3lnlGlXIk69YqSFPBqYCzs2QV1Ac-z0w.webp"
+            <img src="figures/신데렐라.jpeg"
                  width="70" height="95"
                  style="object-fit:contain;">
           </td>
@@ -74,7 +74,7 @@
       <table align="center" width="105">
         <tr>
           <td align="center" height="120">
-            <img src="https://i.namu.wiki/i/9gOVdl4KoXO4W0AlvHHRjrVn7B811YezMz2fPsvvyYQoh2VYkNCgdDY88yraicV6ZgUvzpM8VGPriXZoMq6EOPOr7PAZX3TfJm9ASPl--yWKhuKex2e57U_iaH5OsZwMyWat4bqn7RSHz5TBF41KDA.webp"
+            <img src="figures/라푼젤.jpg"
                  width="70" height="95"
                  style="object-fit:contain;">
           </td>
@@ -94,7 +94,7 @@
       <table align="center" width="105">
         <tr>
           <td align="center" height="120">
-            <img src="https://i.namu.wiki/i/tgS8umpyIrZq9wV7LeD0JIqpLoovimCrZmoHgBh2cFQmDSrawg3ZNFdcPbVTcu9zyIcJ7QS35Coj1DjEDKER76VIA_i3DWgAHRVb9AqtHctFyWY7kT_Y-6X36I3BKiqH6GDD_eyIBvh2BK7DU1Hr0A.webp"
+            <img src="figures/백설공주.jpeg"
                  width="70" height="95"
                  style="object-fit:contain;">
           </td>
@@ -113,7 +113,7 @@
       <table align="center" width="105">
         <tr>
           <td align="center" height="120">
-            <img src="https://i.namu.wiki/i/mJpilepKlxdP9GW0tjkDHFpaSIjoHjrXNKyUxlCAw5Me0qxIG5w3Ap0MewR_ex7rch3Sra0QihtFiDXi8bIzhA.webp"
+            <img src="figures/엘사.jpg"
                  width="70" height="95"
                  style="object-fit:contain;">
           </td>
@@ -131,7 +131,7 @@
       <table align="center" width="105">
         <tr>
           <td align="center" height="120">
-            <img src="https://i.namu.wiki/i/XJ98dasllnVQ3llmmtGb1_t_V15id0uV9dIPjnPPKlGaR2-Ud3As1w0Jy8XjBSa4GkgwII_lwmbWRPwspKbd4TwcQXoVU6wx_c6Hc5vVi3SY_d_g6rzIb0_XPV7Kli-SGCtJOGGEkWDSIUa2MJ2V-g.webp"
+            <img src="figures/벨.jpg"
                  width="70" height="95"
                  style="object-fit:contain;">
           </td>
